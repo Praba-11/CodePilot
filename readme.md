@@ -1,4 +1,4 @@
-# Coding AI Agent
+# CodePilot
 
 A CLI-based AI coding assistant that uses the Gemini (Google GenAI) API to iteratively inspect, edit, run, and test Python code inside a restricted project workspace. The agent exposes a small set of safe functions (list, read, write, execute) that the model can call to complete coding tasks while enforcing directory-boundary guardrails.
 
