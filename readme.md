@@ -23,8 +23,8 @@ A CLI-based AI coding assistant that uses the Gemini (Google GenAI) API to itera
 1. Initialize project and venv using the `uv` helper:
 
 ```bash
-uv init "Coding AI Agent"
-cd "Coding AI Agent"
+uv init "CodePilot"
+cd "CodePilot"
 uv venv
 # add venv to .gitignore
 source .venv/bin/activate
