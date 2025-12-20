@@ -1,9 +1,25 @@
+"""
+Safe file reading function for the AI agent.
+
+Reads file contents with truncation to prevent payload overflow.
+"""
+
 import os
+from typing import Optional
 from .config import MAX_FILE_CHARS
 from google.genai import types
 
 
 def _is_within_directory(base: str, target: str) -> bool:
+    """Check if target path is within base directory.
+    
+    Args:
+        base: The base directory path.
+        target: The target path to check.
+        
+    Returns:
+        True if target is within base, False otherwise.
+    """
     base_abs = os.path.abspath(base)
     target_abs = os.path.abspath(target)
     try:
@@ -13,7 +29,16 @@ def _is_within_directory(base: str, target: str) -> bool:
     return common == base_abs
 
 
-def get_file_content(working_directory, file_path):
+def get_file_content(working_directory: str, file_path: str) -> str:
+    """Read file contents with optional truncation.
+    
+    Args:
+        working_directory: The base working directory.
+        file_path: The path to the file, relative to working_directory.
+        
+    Returns:
+        The file contents or error message.
+    """
     try:
         full_path = os.path.join(working_directory, file_path)
         if not _is_within_directory(working_directory, full_path):

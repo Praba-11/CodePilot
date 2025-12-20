@@ -1,9 +1,25 @@
+"""
+Safe file listing function for the AI agent.
+
+Lists files and directories with security guardrails to prevent
+directory traversal attacks.
+"""
+
 import os
 from typing import List
 from google.genai import types
 
 
 def _is_within_directory(base: str, target: str) -> bool:
+    """Check if target path is within base directory.
+    
+    Args:
+        base: The base directory path.
+        target: The target path to check.
+        
+    Returns:
+        True if target is within base, False otherwise.
+    """
     base_abs = os.path.abspath(base)
     target_abs = os.path.abspath(target)
     try:
@@ -14,6 +30,15 @@ def _is_within_directory(base: str, target: str) -> bool:
 
 
 def _format_entry_line(name: str, path: str) -> str:
+    """Format a file/directory entry for display.
+    
+    Args:
+        name: The name of the entry.
+        path: The absolute path to the entry.
+        
+    Returns:
+        A formatted string with file info.
+    """
     try:
         is_dir = os.path.isdir(path)
         size = os.path.getsize(path)
@@ -23,6 +48,15 @@ def _format_entry_line(name: str, path: str) -> str:
 
 
 def get_files_info(working_directory: str, directory: str = ".") -> str:
+    """List files in the specified directory.
+    
+    Args:
+        working_directory: The base working directory.
+        directory: The directory to list, relative to working_directory.
+        
+    Returns:
+        A formatted string with directory contents or error message.
+    """
     try:
         full_path = os.path.join(working_directory, directory)
 

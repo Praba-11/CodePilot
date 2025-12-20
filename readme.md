@@ -1,91 +1,160 @@
 # CodePilot
 
-A CLI-based AI coding assistant that uses the Gemini (Google GenAI) API to iteratively inspect, edit, run, and test Python code inside a restricted project workspace. The agent exposes a small set of safe functions (list, read, write, execute) that the model can call to complete coding tasks while enforcing directory-boundary guardrails.
+> An AI-powered coding assistant that uses Google Gemini API to iteratively inspect, edit, run, and test Python code in a sandboxed workspace.
 
----
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
 
-## Highlights
+## Overview
 
-* CLI entrypoint that sends user prompts to Gemini and follows model-driven function calls to complete tasks.
-* Secure function toolkit (implemented under `functions/`) with strict working-directory enforcement:
+CodePilot is a **CLI-based AI coding assistant** that uses the Gemini (Google GenAI) API to iteratively inspect, edit, run, and test Python code inside a restricted project workspace.
 
-  * `get_files_info(working_directory, directory)` — list files and directories.
-  * `get_file_content(working_directory, file_path)` — read file contents (with configurable truncation limit).
-  * `write_file(working_directory, file_path, content)` — create/overwrite files safely.
-  * `run_python_file(working_directory, file_path, args=[])` — execute Python files under a timeout, capturing stdout/stderr.
-* Example subproject: `calculator/` with a small calculator app, tests, and utility renderers to exercise the agent.
-* Uses a `system_prompt` and `types.FunctionDeclaration` / `types.Tool` to describe the available tools to the model so it plans function calls safely.
+### Key Features
 
----
+- 🤖 **AI-Powered**: Leverage Google Gemini 2.0 Flash for intelligent code understanding
+- 🔒 **Secure Sandbox**: Directory boundary enforcement prevents path traversal attacks
+- ⚡ **Fast Execution**: 30-second timeout with output capture
+- 📦 **Type-Safe**: Full type hints for IDE support
+- 📝 **Well-Documented**: Comprehensive guides and docstrings
+- 🧪 **Tested**: Example calculator with 10+ unit tests
 
-## Quick start
+## Quick Start
 
-1. Initialize project and venv using the `uv` helper:
+### Prerequisites
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/) package manager
+- [Google Gemini API key](https://ai.google.dev/)
+
+### Installation
 
 ```bash
-uv init "CodePilot"
-cd "CodePilot"
+# Clone repository
+git clone https://github.com/Praba-11/CodePilot.git
+cd CodePilot
+
+# Create virtual environment
 uv venv
-# add venv to .gitignore
-source .venv/bin/activate
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+
+# Install dependencies
+uv sync
+
+# Create .env file with your API key
+echo 'GEMINI_API_KEY="your_key_here"' > .env
 ```
 
-2. Add dependencies (these appear in `pyproject.toml`):
+### Usage Examples
 
 ```bash
-uv add google-genai==1.12.1
-uv add python-dotenv==1.1.0
+# Simple query
+python main.py "How many lines of code are in main.py?"
+
+# Run the calculator
+python main.py "Run calculator/main.py with 10 * 2 + 5"
+
+# Verbose mode (shows token usage)
+python main.py "What does calculator.py do?" --verbose
 ```
 
-3. Set your Gemini API key in a `.env` file at project root:
+## How It Works
+
+**Agent Pattern:**
+1. User provides prompt via CLI
+2. Prompt + function declarations → Gemini API
+3. Model decides which functions to call
+4. Agent executes with security checks
+5. Results fed back to model
+6. Final response returned to user
+
+### Available Functions
+
+| Function | Purpose | Security |
+|----------|---------|----------|
+| `get_files_info()` | List files | Directory boundary check |
+| `get_file_content()` | Read files | Boundary + 10K char truncation |
+| `write_file()` | Create/update files | Boundary + auto parent dirs |
+| `run_python_file()` | Execute scripts | Boundary + 30s timeout |
+
+## Security
+
+✅ **Directory Boundary** - Prevents `../` path traversal  
+✅ **Output Truncation** - Limits file content to 10,000 chars  
+✅ **Execution Timeout** - Scripts limited to 30 seconds  
+✅ **Type Safety** - Full type hints throughout  
+
+## Project Structure
 
 ```
-GEMINI_API_KEY="your_api_key_here"
+CodePilot/
+├── main.py               # CLI entry point
+├── tests.py             # Integration tests
+├── LICENSE              # MIT
+├── README.md            # This file
+├── CONTRIBUTING.md      # Development guide
+├── ARCHITECTURE.md      # Technical details
+├── functions/           # Safe tool implementations
+└── calculator/          # Example subproject
 ```
 
-4. Run the CLI with the `uv` runner (example):
+## Example: Calculator
 
 ```bash
-uv run main.py "Why are episodes 7-9 so much worse than 1-6?"
+python calculator/main.py "3 + 5"
+# Output: {"expression": "3 + 5", "result": 8}
+
+python -m pytest calculator/tests.py -v  # Run tests
 ```
 
-Add `--verbose` after the prompt to get token and tooling debug output:
+## Testing
 
 ```bash
-uv run main.py "What is the meaning of life?" --verbose
+# Unit tests
+python -m pytest calculator/tests.py -v
+
+# Integration tests
+python tests.py
+
+# Syntax check
+python -m py_compile main.py tests.py calculator/main.py functions/*.py
 ```
 
+## Configuration
+
+Create a `.env` file:
+```env
+GEMINI_API_KEY="your_key_here"
+```
+
+Adjust in `functions/config.py`:
+```python
+MAX_FILE_CHARS = 10000
+```
+
+Adjust in `functions/run_python_file.py`:
+```python
+EXECUTION_TIMEOUT_SECONDS = 30
+```
+
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Code style (PEP 8, type hints, docstrings)
+- How to submit PRs
+- Testing requirements
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for:
+- System design and data flow
+- Security model details
+- How to add new tools
+
+## License
+
+MIT - See [LICENSE](LICENSE)
+
+## Author
+
+**Praba-11** - [GitHub](https://github.com/Praba-11)
+
 ---
 
-## How the agent works (high level)
-
-1. On startup, `main.py` loads environment variables via `python-dotenv`, creates a `genai.Client(api_key=...)`, and prepares the user prompt as a `types.Content` message list.
-2. A `system_prompt` instructs the model that it may call specific functions to inspect or edit the workspace.
-3. Function schemas are declared with `types.FunctionDeclaration` and grouped into a `types.Tool` (the `available_functions`).
-4. The model's responses are inspected for `.function_calls`; when the model calls a function the agent maps that call to the corresponding local function in `functions/`, executes it (with working-directory injection), and returns the string result back to the model as a follow-up message.
-5. The loop repeats until the model returns a final textual response or an unrecoverable error occurs.
-
----
-
-## Safety & guardrails
-
-* All function implementations join the provided `working_directory` with the user's relative path and then verify the resulting absolute path **remains inside** the working directory. Attempts to access `../` or absolute paths outside the allowed tree return an error string (e.g., `Error: Cannot list "../" as it is outside the permitted working directory`).
-* File content reads are truncated to a configured maximum (stored in `config.py`) to avoid sending huge payloads to the model.
-* Executions via `run_python_file` use `subprocess.run` with a 30s timeout and capture stdout/stderr; non-zero exit codes and exceptions are surfaced as structured strings so the model can react.
-
----
-
-## Example interactions
-
-* "what files are in the root?" → `get_files_info({'directory': '.'})`
-* "read the contents of main.py" → `get_file_content({'file_path': 'main.py'})`
-* "run main.py" → `run_python_file({'file_path': 'main.py'})`
-* "write 'hello' to main.txt" → `write_file({'file_path': 'main.txt', 'content': 'hello'})`
-
----
-
-## Future improvements
-
-* Add authentication/authorization for multi-user scenarios.
-* Add richer result parsing and a dry-run mode for potentially destructive write operations.
-* Add more concise prompt engineering for multi-step repairs and rollbacks.
+**Happy coding! 🚀**

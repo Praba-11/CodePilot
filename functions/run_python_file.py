@@ -1,10 +1,28 @@
+"""
+Safe Python file execution function for the AI agent.
+
+Executes Python files with subprocess isolation and timeout protection.
+"""
+
 import os
 import subprocess
-from typing import List
+from typing import List, Optional
 from google.genai import types
+
+# Timeout for script execution in seconds
+EXECUTION_TIMEOUT_SECONDS = 30
 
 
 def _is_within_directory(base: str, target: str) -> bool:
+    """Check if target path is within base directory.
+    
+    Args:
+        base: The base directory path.
+        target: The target path to check.
+        
+    Returns:
+        True if target is within base, False otherwise.
+    """
     base_abs = os.path.abspath(base)
     target_abs = os.path.abspath(target)
     try:
@@ -14,7 +32,19 @@ def _is_within_directory(base: str, target: str) -> bool:
     return common == base_abs
 
 
-def run_python_file(working_directory, file_path, args: List[str] | None = None):
+def run_python_file(
+    working_directory: str, file_path: str, args: Optional[List[str]] = None
+) -> str:
+    """Execute a Python file with optional arguments.
+    
+    Args:
+        working_directory: The base working directory.
+        file_path: The path to the Python file, relative to working_directory.
+        args: Optional list of command-line arguments.
+        
+    Returns:
+        The stdout/stderr output or error message.
+    """
     try:
         if args is None:
             args = []
@@ -37,10 +67,12 @@ def run_python_file(working_directory, file_path, args: List[str] | None = None)
                 cwd=working_directory,
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=EXECUTION_TIMEOUT_SECONDS,
             )
+        except subprocess.TimeoutExpired:
+            return f"Error: Script execution timed out after {EXECUTION_TIMEOUT_SECONDS} seconds"
         except Exception as exc:
-            return f"Error: executing Python file: {exc}"
+            return f"Error executing Python file: {exc}"
 
         stdout = completed.stdout.strip()
         stderr = completed.stderr.strip()

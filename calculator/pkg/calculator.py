@@ -1,27 +1,62 @@
+"""
+Core calculator logic for expression evaluation.
+
+Implements a shunting-yard algorithm for handling operator precedence
+and evaluating mathematical expressions.
+"""
+
+from typing import Callable, Optional, Dict
+
+
 class Calculator:
-    def __init__(self):
-        self.operators = {
+    """Evaluates mathematical expressions with proper operator precedence."""
+
+    def __init__(self) -> None:
+        """Initialize the calculator with supported operators and precedence."""
+        self.operators: Dict[str, Callable[[float, float], float]] = {
             "+": lambda a, b: a + b,
             "-": lambda a, b: a - b,
             "*": lambda a, b: a * b,
             "/": lambda a, b: a / b,
         }
-        self.precedence = {
+        self.precedence: Dict[str, int] = {
             "+": 1,
             "-": 1,
             "*": 2,
             "/": 2,
         }
 
-    def evaluate(self, expression):
+    def evaluate(self, expression: str) -> Optional[float]:
+        """Evaluate a mathematical expression.
+        
+        Args:
+            expression: A space-separated mathematical expression (e.g., "3 + 5 * 2").
+            
+        Returns:
+            The result of the expression, or None if empty.
+            
+        Raises:
+            ValueError: If the expression is invalid.
+        """
         if not expression or expression.isspace():
             return None
         tokens = expression.strip().split()
         return self._evaluate_infix(tokens)
 
-    def _evaluate_infix(self, tokens):
-        values = []
-        operators = []
+    def _evaluate_infix(self, tokens: list) -> float:
+        """Evaluate using the shunting-yard algorithm.
+        
+        Args:
+            tokens: List of tokenized expression elements.
+            
+        Returns:
+            The computed result.
+            
+        Raises:
+            ValueError: If the expression structure is invalid.
+        """
+        values: list = []
+        operators: list = []
 
         for token in tokens:
             if token in self.operators:
@@ -46,7 +81,16 @@ class Calculator:
 
         return values[0]
 
-    def _apply_operator(self, operators, values):
+    def _apply_operator(self, operators: list, values: list) -> None:
+        """Apply the most recent operator to the values stack.
+        
+        Args:
+            operators: Stack of operators.
+            values: Stack of numeric values.
+            
+        Raises:
+            ValueError: If there are insufficient operands.
+        """
         if not operators:
             return
 
