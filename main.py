@@ -14,10 +14,10 @@ from typing import Optional, Tuple
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from functions.get_files_info import schema_get_files_info
-from functions.get_file_content import schema_get_file_content
-from functions.write_file import schema_write_file
-from functions.run_python_file import schema_run_python_file
+from functions.get_files_info import schema_get_files_info, get_files_info
+from functions.get_file_content import schema_get_file_content, get_file_content
+from functions.write_file import schema_write_file, write_file
+from functions.run_python_file import schema_run_python_file, run_python_file
 
 # Configure logging
 logging.basicConfig(
@@ -96,11 +96,51 @@ def extract_response_token_counts(response) -> Tuple[Optional[int], Optional[int
     return prompt_tokens, response_tokens
 
 
+def execute_function_call(function_name: str, function_args: dict, working_directory: str) -> str:
+    """Execute a function call from the model and return the result.
+    
+    Args:
+        function_name: The name of the function to call.
+        function_args: The arguments to pass to the function.
+        working_directory: The base working directory for sandboxing.
+        
+    Returns:
+        The function result as a string.
+    """
+    try:
+        if function_name == "get_files_info":
+            directory = function_args.get("directory", ".")
+            return get_files_info(working_directory, directory)
+        elif function_name == "get_file_content":
+            file_path = function_args.get("file_path")
+            if not file_path:
+                return "Error: file_path is required"
+            return get_file_content(working_directory, file_path)
+        elif function_name == "write_file":
+            file_path = function_args.get("file_path")
+            content = function_args.get("content")
+            if not file_path or content is None:
+                return "Error: file_path and content are required"
+            return write_file(working_directory, file_path, content)
+        elif function_name == "run_python_file":
+            file_path = function_args.get("file_path")
+            args = function_args.get("args", [])
+            if not file_path:
+                return "Error: file_path is required"
+            return run_python_file(working_directory, file_path, args)
+        else:
+            return f"Error: Unknown function '{function_name}'"
+    except Exception as exc:
+        return f"Error executing function: {exc}"
+
+
 def generate_gemini_response(prompt: str, api_key: str, verbose: bool = False) -> str:
     """Generate a response from the Gemini API for the given prompt.
     
     The agent can call various functions to inspect and modify files,
     as well as execute Python code within a sandboxed workspace.
+    Implements an agentic loop that continues until the model stops
+    calling functions and returns a final text response.
     
     Args:
         prompt: The user's prompt/request.
@@ -111,6 +151,7 @@ def generate_gemini_response(prompt: str, api_key: str, verbose: bool = False) -
         The model's response text.
     """
     client = genai.Client(api_key=api_key)
+    working_directory = os.getcwd()
 
     # Updated system prompt per README: instruct tool usage
     system_prompt = (
@@ -120,6 +161,9 @@ You are a helpful AI coding agent.
 When a user asks a question or makes a request, make a function call plan. You can perform the following operations:
 
 - List files and directories
+- Read file contents
+- Write or create files
+- Execute Python files
 
 All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
 """
@@ -143,32 +187,74 @@ All paths you provide should be relative to the working directory. You do not ne
         ]
     )
 
-    response = client.models.generate_content(
-        model=model,
-        contents=messages,
-        config=types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            tools=[available_functions],
-        ),
-    )
+    # Agentic loop: continue until model stops calling functions
+    max_iterations = 10
+    iteration = 0
+    
+    while iteration < max_iterations:
+        iteration += 1
+        
+        response = client.models.generate_content(
+            model=model,
+            contents=messages,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                tools=[available_functions],
+            ),
+        )
 
-    if verbose:
-        # Prefer usage info from response; otherwise compute prompt tokens directly
-        prompt_tokens, response_tokens = extract_response_token_counts(response)
-        if prompt_tokens is None:
-            prompt_tokens = count_prompt_tokens(client, model, messages)
-        if prompt_tokens is not None:
-            logger.info(f"Prompt tokens: {prompt_tokens}")
-        if response_tokens is not None:
-            logger.info(f"Response tokens: {response_tokens}")
+        if verbose:
+            # Prefer usage info from response; otherwise compute prompt tokens directly
+            prompt_tokens, response_tokens = extract_response_token_counts(response)
+            if prompt_tokens is None:
+                prompt_tokens = count_prompt_tokens(client, model, messages)
+            if prompt_tokens is not None:
+                logger.info(f"Prompt tokens: {prompt_tokens}")
+            if response_tokens is not None:
+                logger.info(f"Response tokens: {response_tokens}")
 
-    # If the model issued function calls, surface them
-    try:
-        for part in getattr(response, "function_calls", []) or []:
-            logger.debug(f"Calling function: {part.name}({part.args})")
-    except Exception as exc:
-        logger.debug(f"Error processing function calls: {exc}")
+        # Check if model issued function calls
+        function_calls_made = False
+        try:
+            calls = getattr(response, "function_calls", []) or []
+            if calls:
+                function_calls_made = True
+                # Add assistant's response to messages
+                messages.append(response)
+                
+                # Process each function call
+                tool_results = []
+                for part in calls:
+                    function_name = part.name
+                    function_args = dict(part.args) if hasattr(part, "args") else {}
+                    
+                    logger.info(f"Executing function: {function_name}({function_args})")
+                    
+                    # Execute the function
+                    result = execute_function_call(function_name, function_args, working_directory)
+                    logger.info(f"Function result: {result[:200]}...")  # Log first 200 chars
+                    
+                    tool_results.append(
+                        types.Part(
+                            function_response=types.FunctionResponse(
+                                name=function_name,
+                                response={"result": result}
+                            )
+                        )
+                    )
+                
+                # Add tool results to messages
+                if tool_results:
+                    messages.append(types.Content(role="user", parts=tool_results))
+        except Exception as exc:
+            logger.debug(f"Error processing function calls: {exc}")
 
+        # If no function calls were made, return the text response
+        if not function_calls_made:
+            return getattr(response, "text", getattr(response, "output_text", str(response)))
+
+    # Max iterations reached
+    logger.warning(f"Max iterations ({max_iterations}) reached in agentic loop")
     return getattr(response, "text", getattr(response, "output_text", str(response)))
 
 
