@@ -2,7 +2,6 @@
 
 > An AI-powered coding assistant that uses Google Gemini API to iteratively inspect, edit, run, and test Python code in a sandboxed workspace.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
 
 ## Overview
