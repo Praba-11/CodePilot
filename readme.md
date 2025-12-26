@@ -146,10 +146,6 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for:
 - Security model details
 - How to add new tools
 
-## License
-
-MIT - See [LICENSE](LICENSE)
-
 ## Author
 
 **Praba-11** - [GitHub](https://github.com/Praba-11)
